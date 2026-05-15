@@ -4,6 +4,9 @@ import pandas as pd
 import seaborn as sns  
 import kagglehub
 import os
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 
 # Download latest version
@@ -90,15 +93,31 @@ df = df[
     (df['adr'] <= limite_superior)
 ]
 
+
+#criação de variáveis
+df['total_guests'] = (
+    df['adults'] +
+    df['children'] +
+    df['babies']
+)
+df['total_nights'] = (
+    df['stays_in_weekend_nights'] +
+    df['stays_in_week_nights']
+)
+df['has_previous_cancellation'] = (
+    df['previous_cancellations'] > 0
+).astype(int)
+df['has_booking_changes'] = (
+    df['booking_changes'] > 0
+).astype(int)
+df['is_family'] = (
+    (df['children'] > 0) |
+    (df['babies'] > 0)
+).astype(int)
+
 #REMOVER COLUNA reservation_status e reservation_status_date,
 #vão atrapalhar o modelo pois já informam o cancelamento
 df = df.drop(columns=['reservation_status', 'reservation_status_date'])
-
-X = df.drop('is_canceled', axis=1)
-y = df['is_canceled']
-X = pd.get_dummies(X, drop_first=True)
-print(X.shape)
-print(y.shape)
 
 
 #ANALISE EXPLORATÓRIA
@@ -239,4 +258,84 @@ plt.title('Reservas por Mês')
 
 plt.show()
 
-teste
+
+X = df.drop('is_canceled', axis=1)
+y = df['is_canceled']
+X = pd.get_dummies(X, drop_first=True)
+
+print(X.shape)
+print(y.shape)
+
+
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.2,
+    random_state=42,
+    stratify=y
+)
+print(X_train.shape)
+print(X_test.shape)
+
+print(y_train.shape)
+print(y_test.shape)
+# Os dados foram separados em treino e teste
+
+
+
+# Modelo random forest
+
+modelo_rf = RandomForestClassifier(
+    n_estimators=100,
+    random_state=42
+)
+
+modelo_rf.fit(X_train, y_train)
+
+y_pred = modelo_rf.predict(X_test)
+
+
+acuracia = accuracy_score(y_test, y_pred)
+
+print("Acurácia:", acuracia)
+
+print("\nRelatório de Classificação:")
+print(classification_report(y_test, y_pred))
+
+print("\nMatriz de Confusão:")
+print(confusion_matrix(y_test, y_pred))
+
+sns.heatmap(
+    confusion_matrix(y_test, y_pred),
+    annot=True,
+    fmt='d'
+)
+
+plt.title('Matriz de Confusão - Random Forest')
+plt.xlabel('Previsão')
+plt.ylabel('Valor Real')
+plt.show()
+
+importancias = pd.DataFrame({
+    'variavel': X.columns,
+    'importancia': modelo_rf.feature_importances_
+})
+
+importancias = importancias.sort_values(
+    by='importancia',
+    ascending=False
+)
+
+print(importancias.head(15))
+
+top_importancias = importancias.head(15)
+
+sns.barplot(
+    data=top_importancias,
+    x='importancia',
+    y='variavel'
+)
+
+plt.title('Top 15 Variáveis Mais Importantes - Random Forest')
+plt.show()
